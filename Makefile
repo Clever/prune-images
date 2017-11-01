@@ -26,5 +26,8 @@ run: build
 $(PKGS): golang-test-all-deps
 	$(call golang-test-all,$@)
 
-vendor: golang-godep-vendor-deps
-	$(call golang-godep-vendor,$(PKGS))
+$(GOPATH)/bin/glide:
+	go get -u github.com/Masterminds/glide
+
+install_deps: $(GOPATH)/bin/glide
+	@$(GOPATH)/bin/glide install -v
