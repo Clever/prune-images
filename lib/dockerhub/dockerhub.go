@@ -10,12 +10,15 @@ import (
 	"time"
 
 	"github.com/Clever/prune-images/common"
+	"gopkg.in/Clever/kayvee-go.v5/logger"
 )
 
 const (
 	dockerHubNamespace = "clever"
 	retryAttempts      = 3
 )
+
+var kv = logger.New("init-service")
 
 // Client to interact with DockerHub API
 type Client struct {
@@ -208,12 +211,14 @@ func (c *Client) DeleteImage(repo, tag string) error {
 }
 
 func (c *Client) PruneAllRepos() ([]common.RepoTagDescription, bool, error) {
+	kv.Info("get-all-docker-repos")
 	repos, err := c.GetAllRepos()
 	if err != nil {
 		return nil, false, err
 	}
 	var reposWithTags []common.RepoTagDescription
 	var encounteredNonFatalError bool
+	kv.Info("get-all-docker-tags")
 	for _, repo := range repos {
 		tags, err := c.getAllTagsWithBackoff(retryAttempts, repo.Name)
 		if err != nil {
@@ -237,6 +242,7 @@ func (c *Client) PruneAllRepos() ([]common.RepoTagDescription, bool, error) {
 		reposWithTags = append(reposWithTags, repoTagDescription)
 	}
 	// Keep track of images that were actually deleted
+	kv.Info("delete-docker-repos")
 	var deletedImages []common.RepoTagDescription
 	for _, repo := range reposWithTags {
 		if len(repo.Tags) >= common.MinImagesInRepo {

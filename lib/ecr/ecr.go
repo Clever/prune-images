@@ -63,7 +63,7 @@ func (c *Client) deleteImages(reposToPrune []*ecr.BatchDeleteImageInput) bool {
 		_, err := c.service.BatchDeleteImage(repo)
 		if err != nil {
 			encounteredError = true
-			log.Printf("failed to delet ECR repository %s: %s", *repo, err.Error())
+			log.Printf("failed to delete ECR repository %s: %s", *repo, err.Error())
 		}
 	}
 	return encounteredError

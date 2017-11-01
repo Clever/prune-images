@@ -25,6 +25,7 @@ func main() {
 		}
 	}
 	b, _ := json.Marshal(output)
+	b = append(b, '\n')
 	os.Stdout.Write(b)
 
 	if err != nil {
