@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 	"os"
 
 	"github.com/Clever/prune-images/config"
@@ -15,16 +15,19 @@ type programOutput struct {
 func main() {
 	config.Parse()
 	err := pruneRepos()
-	if err != nil {
-		output := programOutput{
-			Success:      false,
-			ErrorMessage: err.Error(),
-		}
-		fmt.Printf("%+v", output)
-		os.Exit(1)
-	}
 	output := programOutput{
 		Success: true,
 	}
-	fmt.Printf("%+v", output)
+	if err != nil {
+		output = programOutput{
+			Success:      false,
+			ErrorMessage: err.Error(),
+		}
+	}
+	b, _ := json.Marshal(output)
+	os.Stdout.Write(b)
+
+	if err != nil {
+		os.Exit(1)
+	}
 }
