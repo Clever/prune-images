@@ -57,27 +57,23 @@ func generateBatchDeleteImageInputRequest(repo string, tags []common.TagDescript
 	return deleteRequest
 }
 
-func (c *Client) deleteImages(reposToPrune []*ecr.BatchDeleteImageInput) bool {
-	var encounteredError bool
+func (c *Client) deleteImages(reposToPrune []*ecr.BatchDeleteImageInput) {
 	for _, repo := range reposToPrune {
 		_, err := c.service.BatchDeleteImage(repo)
 		if err != nil {
-			encounteredError = true
 			log.Printf("failed to delete ECR repository %s: %s", *repo, err.Error())
 		}
 	}
-	return encounteredError
 }
 
 // DeleteImages deletes the given images from ECR
-func (c *Client) DeleteImages(imagesToDelete []common.RepoTagDescription) bool {
+func (c *Client) DeleteImages(imagesToDelete []common.RepoTagDescription) {
 	// Generate batch delete input. Even if we encounter errors
 	// we can still continue with the inputs that were generated
 	batchDeleteInput := c.generateBatchDeleteInput(imagesToDelete)
 
 	// Delete images
 	if !c.dryrun {
-		return c.deleteImages(batchDeleteInput)
+		c.deleteImages(batchDeleteInput)
 	}
-	return false
 }

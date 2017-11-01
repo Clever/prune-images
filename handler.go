@@ -31,12 +31,7 @@ func pruneRepos() error {
 
 	// Prune from Docker Hub
 	kv.Info("prune-docker-repos")
-	deletedImages, encounteredNonFatalError, err := dockerhubClient.PruneAllRepos()
-	if encounteredNonFatalError {
-		kv.ErrorD("prune-docker-repos", logger.M{
-			"error": "encountered one or more non-fatal errors",
-		})
-	}
+	deletedImages, err := dockerhubClient.PruneAllRepos()
 	if err != nil {
 		return fmt.Errorf("error while pruning repos from Docker Hub: %s", err.Error())
 	}
@@ -50,12 +45,7 @@ func pruneRepos() error {
 
 	// Prune ECR with the images that were pruned from Docker Hub
 	kv.Info("prune-ecr-repos")
-	encounteredNonFatalError = ecrClient.DeleteImages(deletedImages)
-	if encounteredNonFatalError {
-		kv.ErrorD("prune-ecr-repos", logger.M{
-			"error": "encountered one or more non-fatal errors",
-		})
-	}
+	ecrClient.DeleteImages(deletedImages)
 
 	return nil
 }

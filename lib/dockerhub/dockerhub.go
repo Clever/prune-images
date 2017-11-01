@@ -210,19 +210,17 @@ func (c *Client) DeleteImage(repo, tag string) error {
 	return nil
 }
 
-func (c *Client) PruneAllRepos() ([]common.RepoTagDescription, bool, error) {
+func (c *Client) PruneAllRepos() ([]common.RepoTagDescription, error) {
 	kv.Info("get-all-docker-repos")
 	repos, err := c.GetAllRepos()
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	var reposWithTags []common.RepoTagDescription
-	var encounteredNonFatalError bool
 	kv.Info("get-all-docker-tags")
 	for _, repo := range repos {
 		tags, err := c.getAllTagsWithBackoff(retryAttempts, repo.Name)
 		if err != nil {
-			encounteredNonFatalError = true
 			log.Printf("failed to get tags from Docker Hub for repo %s: %s", repo, err.Error())
 			continue
 		}
@@ -260,7 +258,6 @@ func (c *Client) PruneAllRepos() ([]common.RepoTagDescription, bool, error) {
 				if !c.dryrun {
 					err = c.deleteImageWithBackoff(retryAttempts, repo.RepoName, tags[i].Name)
 					if err != nil {
-						encounteredNonFatalError = true
 						log.Printf("failed to delete %s:%s from Docker Hub: %s", repo, tags[i].Name, err.Error())
 						continue
 					}
@@ -275,7 +272,7 @@ func (c *Client) PruneAllRepos() ([]common.RepoTagDescription, bool, error) {
 		}
 	}
 
-	return deletedImages, encounteredNonFatalError, nil
+	return deletedImages, nil
 }
 
 func (c *Client) getAllTagsWithBackoff(timesToRetry int, repo string) ([]tagDetails, error) {

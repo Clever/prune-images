@@ -2,6 +2,7 @@ run:
   type: docker
 use_iam_roles: true
 env: 
+  - AWS_REGION
   - DOCKERHUB_USERNAME
   - DOCKERHUB_PASSWORD
   - DRY_RUN
