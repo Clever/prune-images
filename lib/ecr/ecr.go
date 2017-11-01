@@ -2,9 +2,10 @@ package ecr
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/Clever/prune-images/common"
-	"github.com/Clever/prune-images/config"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
 )
@@ -12,11 +13,14 @@ import (
 // Client to interact with ECR API
 type Client struct {
 	service *ecr.ECR
+	dryrun  bool
 }
 
-func NewClient() *Client {
+func NewClient(dryrun bool) *Client {
+	awsConfig := aws.NewConfig().WithMaxRetries(10)
 	return &Client{
-		service: ecr.New(session.New()),
+		service: ecr.New(session.New(), awsConfig),
+		dryrun:  dryrun,
 	}
 }
 
@@ -27,7 +31,7 @@ func (c *Client) generateBatchDeleteInput(imagesToDelete []common.RepoTagDescrip
 		reposToPrune = append(reposToPrune, imagesToPrune)
 	}
 
-	if config.DryRun {
+	if c.dryrun {
 		fmt.Printf("Request bodies that will be sent to AWS: %+v\n", reposToPrune)
 	}
 
@@ -53,26 +57,27 @@ func generateBatchDeleteImageInputRequest(repo string, tags []common.TagDescript
 	return deleteRequest
 }
 
-func (c *Client) deleteImages(reposToPrune []*ecr.BatchDeleteImageInput) []error {
-	var errorAccumulator []error
+func (c *Client) deleteImages(reposToPrune []*ecr.BatchDeleteImageInput) bool {
+	var encounteredError bool
 	for _, repo := range reposToPrune {
 		_, err := c.service.BatchDeleteImage(repo)
 		if err != nil {
-			errorAccumulator = append(errorAccumulator, fmt.Errorf("failed to delete ECR repository %s: %s", *repo, err.Error()))
+			encounteredError = true
+			log.Printf("failed to delet ECR repository %s: %s", *repo, err.Error())
 		}
 	}
-	return errorAccumulator
+	return encounteredError
 }
 
 // DeleteImages deletes the given images from ECR
-func (c *Client) DeleteImages(imagesToDelete []common.RepoTagDescription) []error {
+func (c *Client) DeleteImages(imagesToDelete []common.RepoTagDescription) bool {
 	// Generate batch delete input. Even if we encounter errors
 	// we can still continue with the inputs that were generated
 	batchDeleteInput := c.generateBatchDeleteInput(imagesToDelete)
 
 	// Delete images
-	if !config.DryRun {
+	if !c.dryrun {
 		return c.deleteImages(batchDeleteInput)
 	}
-	return nil
+	return false
 }

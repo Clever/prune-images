@@ -4,11 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/Clever/prune-images/common"
-	"github.com/Clever/prune-images/config"
+)
+
+const (
+	dockerHubNamespace = "clever"
+	retryAttempts      = 3
 )
 
 // Client to interact with DockerHub API
@@ -18,6 +24,7 @@ type Client struct {
 	password string
 	token    string
 	client   *http.Client
+	dryrun   bool
 }
 
 // RequestError is the error when an HTTP request fails (response code >= 400)
@@ -26,12 +33,22 @@ type RequestError struct {
 	StatusCode int
 }
 
-type requestResults struct {
-	Next    string           `json:"next"`
-	Results []requestDetails `json:"results"`
+type tagResults struct {
+	Next    string       `json:"next"`
+	Results []tagDetails `json:"results"`
 }
 
-type requestDetails struct {
+type tagDetails struct {
+	Name        string `json:"name"`
+	LastUpdated string `json:"last_updated"`
+}
+
+type repoResults struct {
+	Next    string        `json:"next"`
+	Results []repoDetails `json:"results"`
+}
+
+type repoDetails struct {
 	Name        string `json:"name"`
 	LastUpdated string `json:"last_updated"`
 }
@@ -41,13 +58,14 @@ func (e *RequestError) Error() string {
 }
 
 // NewClient creates a DockerHub client
-func NewClient(username string, password string) *Client {
+func NewClient(username string, password string, dryrun bool) *Client {
 	return &Client{
 		baseURL:  "https://hub.docker.com/v2/",
 		token:    "",
 		username: username,
 		password: password,
 		client:   &http.Client{},
+		dryrun:   dryrun,
 	}
 }
 
@@ -99,59 +117,78 @@ func (c *Client) Login() error {
 	return err
 }
 
-func (c *Client) GetAllRepos() ([]requestDetails, error) {
-	return c.getDetailsFromURL(fmt.Sprintf("%srepositories/%s/?page_size=100", c.baseURL, config.DockerHubNamespace))
-}
-
-func (c *Client) GetAllTags(repo string) ([]requestDetails, error) {
-	return c.getDetailsFromURL(fmt.Sprintf("%srepositories/%s/%s/tags/?page_size=100", c.baseURL, config.DockerHubNamespace, repo))
-}
-
-func (c *Client) getDetailsFromURL(url string) ([]requestDetails, error) {
-	var allDetails []requestDetails
-	tagResponse, err := c.getResultsFromURL(url)
+func (c *Client) GetAllRepos() ([]repoDetails, error) {
+	var allDetails []repoDetails
+	var result repoResults
+	err := c.getResultsFromURL(fmt.Sprintf("%srepositories/%s/?page_size=100", c.baseURL, dockerHubNamespace), &result)
 	if err != nil {
 		return nil, err
 	}
 
-	allDetails = append(allDetails, tagResponse.Results...)
+	allDetails = append(allDetails, result.Results...)
 
-	for tagResponse.Next != "" {
-		tagResponse, err = c.getResultsFromURL(tagResponse.Next)
+	nextURL := result.Next
+	for nextURL != "" {
+		var currentResult repoResults
+		err = c.getResultsFromURL(nextURL, &currentResult)
 		if err != nil {
 			return nil, err
 		}
-		allDetails = append(allDetails, tagResponse.Results...)
+		allDetails = append(allDetails, currentResult.Results...)
+		nextURL = currentResult.Next
 	}
 
 	return allDetails, nil
 }
 
-func (c *Client) getResultsFromURL(url string) (requestResults, error) {
-	var result requestResults
+func (c *Client) GetAllTags(repo string) ([]tagDetails, error) {
+	var allDetails []tagDetails
+	var result tagResults
+	err := c.getResultsFromURL(fmt.Sprintf("%srepositories/%s/%s/tags/?page_size=100", c.baseURL, dockerHubNamespace, repo), &result)
+	if err != nil {
+		return nil, err
+	}
+
+	allDetails = append(allDetails, result.Results...)
+
+	nextURL := result.Next
+	for nextURL != "" {
+		var currentResult tagResults
+		err = c.getResultsFromURL(nextURL, &currentResult)
+		if err != nil {
+			return nil, err
+		}
+		allDetails = append(allDetails, currentResult.Results...)
+		nextURL = currentResult.Next
+	}
+
+	return allDetails, nil
+}
+
+func (c *Client) getResultsFromURL(url string, result interface{}) error {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return result, err
+		return err
 	}
 
 	req.Header.Add("Authorization", c.token)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return result, err
+		return err
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&result)
+	err = json.NewDecoder(resp.Body).Decode(result)
 	if err != nil {
-		return result, err
+		return err
 	}
 
-	return result, nil
+	return nil
 }
 
 // DeleteImage deletes an image from DockerHub
 func (c *Client) DeleteImage(repo, tag string) error {
-	req, err := http.NewRequest("DELETE", fmt.Sprintf("%srepositories/%s/%s/tags/%s/", c.baseURL, config.DockerHubNamespace, repo, tag), nil)
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("%srepositories/%s/%s/tags/%s/", c.baseURL, dockerHubNamespace, repo, tag), nil)
 	if err != nil {
 		return err
 	}
@@ -170,17 +207,19 @@ func (c *Client) DeleteImage(repo, tag string) error {
 	return nil
 }
 
-func (c *Client) PruneAllRepos() ([]common.RepoTagDescription, []error) {
-	var errorAccumulator []error
+func (c *Client) PruneAllRepos() ([]common.RepoTagDescription, bool, error) {
 	repos, err := c.GetAllRepos()
 	if err != nil {
-		return nil, []error{err}
+		return nil, false, err
 	}
 	var reposWithTags []common.RepoTagDescription
+	var encounteredNonFatalError bool
 	for _, repo := range repos {
-		tags, err := c.GetAllTags(repo.Name)
+		tags, err := c.getAllTagsWithBackoff(retryAttempts, repo.Name)
 		if err != nil {
-			errorAccumulator = append(errorAccumulator, fmt.Errorf("failed to get tags from Docker Hub for repo %s: %s", repo, err.Error()))
+			encounteredNonFatalError = true
+			log.Printf("failed to get tags from Docker Hub for repo %s: %s", repo, err.Error())
+			continue
 		}
 
 		var allTags []common.TagDescription
@@ -212,10 +251,11 @@ func (c *Client) PruneAllRepos() ([]common.RepoTagDescription, []error) {
 				return tags[i].LastUpdated > tags[j].LastUpdated
 			})
 			for i := common.MinImagesInRepo; i < len(tags); i++ {
-				if !config.DryRun {
-					err = c.DeleteImage(repo.RepoName, tags[i].Name)
+				if !c.dryrun {
+					err = c.deleteImageWithBackoff(retryAttempts, repo.RepoName, tags[i].Name)
 					if err != nil {
-						errorAccumulator = append(errorAccumulator, fmt.Errorf("failed to delete %s:%s from Docker Hub: %s", repo, tags[i].Name, err.Error()))
+						encounteredNonFatalError = true
+						log.Printf("failed to delete %s:%s from Docker Hub: %s", repo, tags[i].Name, err.Error())
 						continue
 					}
 				}
@@ -229,5 +269,36 @@ func (c *Client) PruneAllRepos() ([]common.RepoTagDescription, []error) {
 		}
 	}
 
-	return deletedImages, errorAccumulator
+	return deletedImages, encounteredNonFatalError, nil
+}
+
+func (c *Client) getAllTagsWithBackoff(timesToRetry int, repo string) ([]tagDetails, error) {
+	sleepDuration := 1 * time.Second
+	var tags []tagDetails
+	var err error
+	for i := 0; i < timesToRetry; i++ {
+		if tags, err = c.GetAllTags(repo); err != nil {
+			log.Printf("attempt %d/%d: failed to get tags from Docker Hub for repo %s: %s", i+1, timesToRetry, repo, err.Error())
+			time.Sleep(sleepDuration)
+			sleepDuration *= 2
+		} else {
+			break
+		}
+	}
+	return tags, err
+}
+
+func (c *Client) deleteImageWithBackoff(timesToRetry int, repo, tag string) error {
+	sleepDuration := 1 * time.Second
+	var err error
+	for i := 0; i < timesToRetry; i++ {
+		if err = c.DeleteImage(repo, tag); err != nil {
+			log.Printf("attempt %d/%d: failed to delete %s:%s from Docker Hub: %s", i+1, timesToRetry, repo, tag, err.Error())
+			time.Sleep(sleepDuration)
+			sleepDuration *= 2
+		} else {
+			break
+		}
+	}
+	return err
 }

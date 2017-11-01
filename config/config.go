@@ -7,11 +7,6 @@ import (
 )
 
 var (
-	// DockerHubNamespace is the namespace used when creating a new repo (hub.docker.com/r/<namespace>/<repo>).
-	// It must be the namespace for an org, because we add permissions for organization, because the permissions
-	// step is for adding organization-style collaborators.
-	DockerHubNamespace string = "clever"
-
 	// DockerHubUsername is the username to login to DockerHub.
 	// It must be for an account that can create a repo and add permissions.
 	DockerHubUsername string

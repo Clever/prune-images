@@ -16,8 +16,8 @@ var (
 )
 
 func pruneRepos() error {
-	dockerhubClient = dockerhub.NewClient(config.DockerHubUsername, config.DockerHubPassword)
-	ecrClient = ecr.NewClient()
+	dockerhubClient = dockerhub.NewClient(config.DockerHubUsername, config.DockerHubPassword, config.DryRun)
+	ecrClient = ecr.NewClient(config.DryRun)
 
 	// Login to DockerHub to get a token
 	kv.Info("dockerhub-login")
@@ -31,14 +31,14 @@ func pruneRepos() error {
 
 	// Prune from Docker Hub
 	kv.Info("prune-docker-repos")
-	deletedImages, errs := dockerhubClient.PruneAllRepos()
-	if len(errs) > 0 {
-		for _, err := range errs {
-			kv.ErrorD("prune-docker-repos", logger.M{
-				"error": err.Error(),
-			})
-		}
-		return fmt.Errorf("one or more errors found while pruning repos from Docker Hub")
+	deletedImages, encounteredNonFatalError, err := dockerhubClient.PruneAllRepos()
+	if encounteredNonFatalError {
+		kv.ErrorD("prune-docker-repos", logger.M{
+			"error": "encountered one or more non-fatal errors",
+		})
+	}
+	if err != nil {
+		return fmt.Errorf("error while pruning repos from Docker Hub: %s", err.Error())
 	}
 
 	for _, repo := range deletedImages {
@@ -50,14 +50,11 @@ func pruneRepos() error {
 
 	// Prune ECR with the images that were pruned from Docker Hub
 	kv.Info("prune-ecr-repos")
-	errs = ecrClient.DeleteImages(deletedImages)
-	if len(errs) > 0 {
-		for _, err := range errs {
-			kv.ErrorD("prune-ecr-repos", logger.M{
-				"error": err.Error(),
-			})
-		}
-		return fmt.Errorf("one or more errors found while pruning repos from ECR")
+	encounteredNonFatalError = ecrClient.DeleteImages(deletedImages)
+	if encounteredNonFatalError {
+		kv.ErrorD("prune-ecr-repos", logger.M{
+			"error": "encountered one or more non-fatal errors",
+		})
 	}
 
 	return nil
