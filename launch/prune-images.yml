@@ -1,0 +1,15 @@
+run:
+  type: docker
+use_iam_roles: true
+env: 
+  - AWS_REGION
+  - DOCKERHUB_USERNAME
+  - DOCKERHUB_PASSWORD
+  - DRY_RUN
+resources:
+  cpu: 0
+  max_mem: 0.1
+shepherds:
+- "vicky.enalen@clever.com"
+expose: []
+team: eng-infra

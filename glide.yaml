@@ -1,0 +1,9 @@
+package: github.com/Clever/prune-images
+import:
+- package: github.com/aws/aws-sdk-go
+  subpackages:
+  - aws/session
+  - service/ecr
+- package: gopkg.in/Clever/kayvee-go.v5
+  subpackages:
+  - logger
