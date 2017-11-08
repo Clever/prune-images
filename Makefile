@@ -10,7 +10,7 @@ SFNCLI_VERSION := latest
 
 .PHONY: test $(PKGS) run clean vendor
 
-$(eval $(call golang-version-check,1.8))
+$(eval $(call golang-version-check,1.9))
 
 test: $(PKGS)
 
@@ -29,5 +29,7 @@ $(PKGS): golang-test-all-deps
 $(GOPATH)/bin/glide:
 	go get -u github.com/Masterminds/glide
 
-install_deps: $(GOPATH)/bin/glide
-	@$(GOPATH)/bin/glide install -v
+
+
+install_deps: golang-dep-vendor-deps
+	$(call golang-dep-vendor)
