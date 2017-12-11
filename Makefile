@@ -20,6 +20,7 @@ build: ./bin/sfncli
 run: build
 	  bin/sfncli --activityname $(_DEPLOY_ENV)--$(_APP_NAME) \
 	  --region us-west-2 \
+		--cloudwatchregion us-west-1 \
 	  --workername `hostname` \
 	  --cmd bin/prune-images
 
