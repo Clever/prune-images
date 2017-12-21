@@ -13,3 +13,6 @@ shepherds:
 - "vicky.enalen@clever.com"
 expose: []
 team: eng-infra
+autoscaling:
+  metric: active-percent
+  metric_target: 70
