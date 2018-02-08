@@ -1,6 +1,10 @@
 run:
   type: docker
-use_iam_roles: true
+aws:
+  custom: true
+  managed:
+    clever:
+    - Workflows
 env: 
   - AWS_REGION
   - DOCKERHUB_USERNAME
