@@ -22,10 +22,6 @@
 
 
 [[constraint]]
-  branch = "master"
-  name = "github.com/Clever/prune-images"
-
-[[constraint]]
   name = "github.com/aws/aws-sdk-go"
 
 [[constraint]]
