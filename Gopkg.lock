@@ -2,12 +2,6 @@
 
 
 [[projects]]
-  branch = "master"
-  name = "github.com/Clever/prune-images"
-  packages = ["common","config","lib/dockerhub","lib/ecr"]
-  revision = "43b895769dfb2e51a220ea28029e37d09a7b88ad"
-
-[[projects]]
   name = "github.com/aws/aws-sdk-go"
   packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","internal/shareddefaults","private/protocol","private/protocol/json/jsonutil","private/protocol/jsonrpc","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/xml/xmlutil","service/ecr","service/sts"]
   revision = "705c9bc7222da45642708fb68f0475f941aa373a"
@@ -32,6 +26,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6c6febbacebc29d8b1b5714d4765b568804212b35c7ddc4a2250fe616bdbc720"
+  inputs-digest = "dfe866b72132d178fd49dd56b04a5fa06d203f1f573d4166a9f9b78a942b1da2"
   solver-name = "gps-cdcl"
   solver-version = 1
