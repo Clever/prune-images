@@ -2,30 +2,73 @@
 
 
 [[projects]]
+  branch = "master"
+  name = "github.com/Clever/prune-images"
+  packages = [
+    "common",
+    "config",
+    "lib/dockerhub",
+    "lib/ecr"
+  ]
+  revision = "fffe2e563cdc9acf99f492d3cfa8dcbef419e8e6"
+
+[[projects]]
   name = "github.com/aws/aws-sdk-go"
-  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","internal/shareddefaults","private/protocol","private/protocol/json/jsonutil","private/protocol/jsonrpc","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/xml/xmlutil","service/ecr","service/sts"]
-  revision = "705c9bc7222da45642708fb68f0475f941aa373a"
+  packages = [
+    "aws",
+    "aws/awserr",
+    "aws/awsutil",
+    "aws/client",
+    "aws/client/metadata",
+    "aws/corehandlers",
+    "aws/credentials",
+    "aws/credentials/ec2rolecreds",
+    "aws/credentials/endpointcreds",
+    "aws/credentials/stscreds",
+    "aws/defaults",
+    "aws/ec2metadata",
+    "aws/endpoints",
+    "aws/request",
+    "aws/session",
+    "aws/signer/v4",
+    "internal/sdkrand",
+    "internal/shareddefaults",
+    "private/protocol",
+    "private/protocol/json/jsonutil",
+    "private/protocol/jsonrpc",
+    "private/protocol/query",
+    "private/protocol/query/queryutil",
+    "private/protocol/rest",
+    "private/protocol/xml/xmlutil",
+    "service/ecr",
+    "service/sts"
+  ]
+  revision = "63324a33d7e42a386c04d4daec764a3de243492e"
+  version = "v1.13.0"
 
 [[projects]]
   name = "github.com/go-ini/ini"
   packages = ["."]
-  revision = "12f418cc7edc5a618a51407b7ac1f1f512139df3"
-  version = "v1.11.0"
+  revision = "32e4c1e6bc4e7d0d8451aa6b75200d19e37a536a"
+  version = "v1.32.0"
 
 [[projects]]
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
-  revision = "0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74"
+  revision = "0b12d6b5"
 
 [[projects]]
   name = "gopkg.in/Clever/kayvee-go.v5"
-  packages = [".","logger"]
+  packages = [
+    ".",
+    "logger"
+  ]
   revision = "865aa5e4bbe8e274c69accd53f0b1e2ecc484cd8"
   version = "v5.2.1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "dfe866b72132d178fd49dd56b04a5fa06d203f1f573d4166a9f9b78a942b1da2"
+  inputs-digest = "ad9cb75fc4fd5d90aa66248a1b4d54abe1c2d0bf9e5f9b67d67ed9c2d87c4768"
   solver-name = "gps-cdcl"
   solver-version = 1
