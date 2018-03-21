@@ -29,23 +29,32 @@ func pruneRepos() error {
 		return fmt.Errorf("failed to login to DockerHub")
 	}
 
-	// Prune from Docker Hub
-	kv.Info("prune-docker-repos")
-	deletedImages, err := dockerhubClient.PruneAllRepos()
+	// List all repos
+	kv.Info("get-all-docker-repos")
+	repos, err := dockerhubClient.GetAllRepos()
 	if err != nil {
-		return fmt.Errorf("error while pruning repos from Docker Hub: %s", err.Error())
+		return err
 	}
 
-	for _, repo := range deletedImages {
-		kv.InfoD("prune-docker-repos", logger.M{
-			"repository": repo.RepoName,
-			"tags":       repo.Tags,
-		})
-	}
+	for _, repo := range repos {
+		// Look up tags in Docker Hub
+		kv.InfoD("prune-docker-repo", logger.M{"repo": repo.Name})
+		repoTags, err := dockerhubClient.GetTagsForRepo(repo)
+		if err != nil && err != dockerhub.ErrorFailedToGetTags {
+			// Some repos may not have tags; otherwise, error
+			return err
+		}
 
-	// Prune ECR with the images that were pruned from Docker Hub
-	kv.Info("prune-ecr-repos")
-	ecrClient.DeleteImages(deletedImages)
+		// Prune tags in DockerHub
+		deletedImages, err := dockerhubClient.PruneRepo(repoTags)
+		if err != nil {
+			return err
+		}
+
+		// Prune ECR with same image tags that were pruned from Docker Hub
+		kv.InfoD("prune-ecr-repo", logger.M{"count": len(deletedImages), "repo": repo.Name})
+		ecrClient.DeleteImages(deletedImages)
+	}
 
 	return nil
 }
