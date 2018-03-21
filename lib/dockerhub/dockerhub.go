@@ -121,7 +121,7 @@ func (c *Client) Login() error {
 	return err
 }
 
-func (c *Client) GetAllRepos() ([]repoDetails, error) {
+func (c *Client) GetAllRepos() ([]string, error) {
 	var allDetails []repoDetails
 	var result repoResults
 	err := c.getResultsFromURL(fmt.Sprintf("%srepositories/%s/?page_size=100", c.baseURL, dockerHubNamespace), &result)
@@ -142,7 +142,12 @@ func (c *Client) GetAllRepos() ([]repoDetails, error) {
 		nextURL = currentResult.Next
 	}
 
-	return allDetails, nil
+	repoNames := []string{}
+	for _, d := range allDetails {
+		repoNames = append(repoNames, d.Name)
+	}
+
+	return repoNames, nil
 }
 
 func (c *Client) GetAllTags(repo string) ([]tagDetails, error) {
@@ -213,10 +218,10 @@ func (c *Client) DeleteImage(repo, tag string) error {
 
 var ErrorFailedToGetTags = errors.New("failed to get tags from Docker hub")
 
-func (c *Client) GetTagsForRepo(details repoDetails) (common.RepoTagDescription, error) {
-	tags, err := c.getAllTagsWithBackoff(retryAttempts, details.Name)
+func (c *Client) GetTagsForRepo(reponame string) (common.RepoTagDescription, error) {
+	tags, err := c.getAllTagsWithBackoff(retryAttempts, reponame)
 	if err != nil {
-		log.Printf("failed to get tags from Docker Hub for repo %s: %s", details, err.Error())
+		log.Printf("failed to get tags from Docker Hub for repo %s: %s", reponame, err.Error())
 		return common.RepoTagDescription{}, ErrorFailedToGetTags
 	}
 
@@ -229,7 +234,7 @@ func (c *Client) GetTagsForRepo(details repoDetails) (common.RepoTagDescription,
 		allTags = append(allTags, currentTag)
 	}
 	return common.RepoTagDescription{
-		RepoName: details.Name,
+		RepoName: reponame,
 		Tags:     allTags,
 	}, nil
 }

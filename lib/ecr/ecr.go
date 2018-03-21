@@ -24,18 +24,20 @@ func NewClient(dryrun bool) *Client {
 	}
 }
 
-func (c *Client) generateBatchDeleteInput(imagesToDelete []common.RepoTagDescription) []*ecr.BatchDeleteImageInput {
-	var reposToPrune []*ecr.BatchDeleteImageInput
-	for _, repo := range imagesToDelete {
-		imagesToPrune := generateBatchDeleteImageInputRequest(repo.RepoName, repo.Tags)
-		reposToPrune = append(reposToPrune, imagesToPrune)
+func (c *Client) generateBatchDeleteInput(repoTags []common.RepoTagDescription) []*ecr.BatchDeleteImageInput {
+	var batchDelete []*ecr.BatchDeleteImageInput
+	for _, rt := range repoTags {
+		imagesToPrune := generateBatchDeleteImageInputRequest(rt.RepoName, rt.Tags)
+		if imagesToPrune != nil {
+			batchDelete = append(batchDelete, imagesToPrune)
+		}
 	}
 
 	if c.dryrun {
-		fmt.Printf("Request bodies that will be sent to AWS: %+v\n", reposToPrune)
+		fmt.Printf("Request bodies that will be sent to AWS: %+v\n", batchDelete)
 	}
 
-	return reposToPrune
+	return batchDelete
 }
 
 func generateBatchDeleteImageInputRequest(repo string, tags []common.TagDescription) *ecr.BatchDeleteImageInput {
@@ -57,11 +59,11 @@ func generateBatchDeleteImageInputRequest(repo string, tags []common.TagDescript
 	return deleteRequest
 }
 
-func (c *Client) deleteImages(reposToPrune []*ecr.BatchDeleteImageInput) {
-	for _, repo := range reposToPrune {
-		_, err := c.service.BatchDeleteImage(repo)
+func (c *Client) deleteImages(inputs []*ecr.BatchDeleteImageInput) {
+	for _, input := range inputs {
+		_, err := c.service.BatchDeleteImage(input)
 		if err != nil {
-			log.Printf("failed to delete ECR repository %s: %s", *repo, err.Error())
+			log.Printf("failed to delete ECR repository %s: %s", input, err.Error())
 		}
 	}
 }
