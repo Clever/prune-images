@@ -18,7 +18,7 @@ const (
 	retryAttempts      = 3
 )
 
-var kv = logger.New("init-service")
+var kv = logger.New("prune-images")
 
 // Client to interact with DockerHub API
 type Client struct {

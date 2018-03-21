@@ -8,7 +8,7 @@ PKGS := $(shell go list ./... | grep -v /vendor)
 EXECUTABLE = $(shell basename $(PKG))
 SFNCLI_VERSION := latest
 
-.PHONY: test $(PKGS) run clean vendor
+.PHONY: test $(PKGS) run
 
 $(eval $(call golang-version-check,1.9))
 
@@ -26,11 +26,6 @@ run: build
 
 $(PKGS): golang-test-all-deps
 	$(call golang-test-all,$@)
-
-$(GOPATH)/bin/glide:
-	go get -u github.com/Masterminds/glide
-
-
 
 install_deps: golang-dep-vendor-deps
 	$(call golang-dep-vendor)

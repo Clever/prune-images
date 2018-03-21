@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	kv              = logger.New("init-service")
+	kv              = logger.New("prune-images")
 	dockerhubClient *dockerhub.Client
 	ecrClient       *ecr.Client
 )

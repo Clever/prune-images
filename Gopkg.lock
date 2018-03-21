@@ -2,17 +2,6 @@
 
 
 [[projects]]
-  branch = "master"
-  name = "github.com/Clever/prune-images"
-  packages = [
-    "common",
-    "config",
-    "lib/dockerhub",
-    "lib/ecr"
-  ]
-  revision = "fffe2e563cdc9acf99f492d3cfa8dcbef419e8e6"
-
-[[projects]]
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -69,6 +58,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ad9cb75fc4fd5d90aa66248a1b4d54abe1c2d0bf9e5f9b67d67ed9c2d87c4768"
+  inputs-digest = "35908ff1f612b82ebfaa119b6c0300af04d943332432db12cca568226eab93a2"
   solver-name = "gps-cdcl"
   solver-version = 1
