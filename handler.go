@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/Clever/prune-images/common"
 	"github.com/Clever/prune-images/config"
 	"github.com/Clever/prune-images/lib/dockerhub"
 	"github.com/Clever/prune-images/lib/ecr"
@@ -29,23 +30,34 @@ func pruneRepos() error {
 		return fmt.Errorf("failed to login to DockerHub")
 	}
 
-	// Prune from Docker Hub
-	kv.Info("prune-docker-repos")
-	deletedImages, err := dockerhubClient.PruneAllRepos()
+	kv.Info("get-all-docker-repos")
+	repos, err := dockerhubClient.GetAllRepos()
 	if err != nil {
-		return fmt.Errorf("error while pruning repos from Docker Hub: %s", err.Error())
+		return err
 	}
 
-	for _, repo := range deletedImages {
-		kv.InfoD("prune-docker-repos", logger.M{
-			"repository": repo.RepoName,
-			"tags":       repo.Tags,
-		})
-	}
+	for _, repo := range repos {
+		kv.DebugD("dockerhub-get-repo-tags", logger.M{"repo": repo})
+		repoTags, err := dockerhubClient.GetTagsForRepo(repo)
+		if err != nil && err != dockerhub.ErrorFailedToGetTags {
+			// Some repos may not have tags; otherwise, error
+			return err
+		}
 
-	// Prune ECR with the images that were pruned from Docker Hub
-	kv.Info("prune-ecr-repos")
-	ecrClient.DeleteImages(deletedImages)
+		if len(repoTags.Tags) <= common.MinImagesInRepo {
+			continue
+		}
+
+		kv.InfoD("dockerhub-prune-repo", logger.M{"repo": repo, "tag_count": len(repoTags.Tags)})
+		deletedImages, err := dockerhubClient.PruneRepo(repoTags)
+		if err != nil {
+			return err
+		}
+
+		// Prune ECR with same image tags that were pruned from Docker Hub
+		kv.InfoD("ecr-prune-repo", logger.M{"repo": repo})
+		ecrClient.DeleteImages(deletedImages)
+	}
 
 	return nil
 }

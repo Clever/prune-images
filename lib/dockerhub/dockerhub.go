@@ -3,6 +3,7 @@ package dockerhub
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -120,7 +121,7 @@ func (c *Client) Login() error {
 	return err
 }
 
-func (c *Client) GetAllRepos() ([]repoDetails, error) {
+func (c *Client) GetAllRepos() ([]string, error) {
 	var allDetails []repoDetails
 	var result repoResults
 	err := c.getResultsFromURL(fmt.Sprintf("%srepositories/%s/?page_size=100", c.baseURL, dockerHubNamespace), &result)
@@ -141,7 +142,12 @@ func (c *Client) GetAllRepos() ([]repoDetails, error) {
 		nextURL = currentResult.Next
 	}
 
-	return allDetails, nil
+	repoNames := []string{}
+	for _, d := range allDetails {
+		repoNames = append(repoNames, d.Name)
+	}
+
+	return repoNames, nil
 }
 
 func (c *Client) GetAllTags(repo string) ([]tagDetails, error) {
@@ -210,66 +216,59 @@ func (c *Client) DeleteImage(repo, tag string) error {
 	return nil
 }
 
-func (c *Client) PruneAllRepos() ([]common.RepoTagDescription, error) {
-	kv.Info("get-all-docker-repos")
-	repos, err := c.GetAllRepos()
+var ErrorFailedToGetTags = errors.New("failed to get tags from Docker hub")
+
+func (c *Client) GetTagsForRepo(reponame string) (common.RepoTagDescription, error) {
+	tags, err := c.getAllTagsWithBackoff(retryAttempts, reponame)
 	if err != nil {
-		return nil, err
+		log.Printf("failed to get tags from Docker Hub for repo %s: %s", reponame, err.Error())
+		return common.RepoTagDescription{}, ErrorFailedToGetTags
 	}
-	var reposWithTags []common.RepoTagDescription
-	kv.Info("get-all-docker-tags")
-	for _, repo := range repos {
-		tags, err := c.getAllTagsWithBackoff(retryAttempts, repo.Name)
-		if err != nil {
-			log.Printf("failed to get tags from Docker Hub for repo %s: %s", repo, err.Error())
-			continue
-		}
 
-		var allTags []common.TagDescription
-		for _, tag := range tags {
-			currentTag := common.TagDescription{
-				Name:        tag.Name,
-				LastUpdated: tag.LastUpdated,
-			}
-			allTags = append(allTags, currentTag)
+	var allTags []common.TagDescription
+	for _, tag := range tags {
+		currentTag := common.TagDescription{
+			Name:        tag.Name,
+			LastUpdated: tag.LastUpdated,
 		}
-		repoTagDescription := common.RepoTagDescription{
-			RepoName: repo.Name,
-			Tags:     allTags,
-		}
-		reposWithTags = append(reposWithTags, repoTagDescription)
+		allTags = append(allTags, currentTag)
 	}
-	// Keep track of images that were actually deleted
-	kv.Info("delete-docker-repos")
+	return common.RepoTagDescription{
+		RepoName: reponame,
+		Tags:     allTags,
+	}, nil
+}
+
+func (c *Client) PruneRepo(repo common.RepoTagDescription) ([]common.RepoTagDescription, error) {
 	var deletedImages []common.RepoTagDescription
-	for _, repo := range reposWithTags {
-		if len(repo.Tags) >= common.MinImagesInRepo {
-			currentRepo := common.RepoTagDescription{
-				RepoName: repo.RepoName,
+	if len(repo.Tags) >= common.MinImagesInRepo {
+		currentRepo := common.RepoTagDescription{
+			RepoName: repo.RepoName,
+		}
+
+		var deletedTags []common.TagDescription
+		tags := repo.Tags
+		// Sort the images from most recent to least recent
+		sort.Slice(tags, func(i, j int) bool {
+			return tags[i].LastUpdated > tags[j].LastUpdated
+		})
+		for i := common.MinImagesInRepo; i < len(tags); i++ {
+			if !c.dryrun {
+				err := c.deleteImageWithBackoff(retryAttempts, repo.RepoName, tags[i].Name)
+				if err != nil {
+					log.Printf("failed to delete %s:%s from Docker Hub: %s", repo, tags[i].Name, err.Error())
+					continue
+				}
 			}
 
-			var deletedTags []common.TagDescription
-			tags := repo.Tags
-			// Sort the images from most recent to least recent
-			sort.Slice(tags, func(i, j int) bool {
-				return tags[i].LastUpdated > tags[j].LastUpdated
+			// Keep track of image tags that were actually deleted
+			deletedTags = append(deletedTags, common.TagDescription{
+				Name:        tags[i].Name,
+				LastUpdated: tags[i].LastUpdated,
 			})
-			for i := common.MinImagesInRepo; i < len(tags); i++ {
-				if !c.dryrun {
-					err = c.deleteImageWithBackoff(retryAttempts, repo.RepoName, tags[i].Name)
-					if err != nil {
-						log.Printf("failed to delete %s:%s from Docker Hub: %s", repo, tags[i].Name, err.Error())
-						continue
-					}
-				}
-				deletedTags = append(deletedTags, common.TagDescription{
-					Name:        tags[i].Name,
-					LastUpdated: tags[i].LastUpdated,
-				})
-			}
-			currentRepo.Tags = deletedTags
-			deletedImages = append(deletedImages, currentRepo)
 		}
+		currentRepo.Tags = deletedTags
+		deletedImages = append(deletedImages, currentRepo)
 	}
 
 	return deletedImages, nil
