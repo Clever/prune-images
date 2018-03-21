@@ -39,9 +39,10 @@ func pruneRepos() error {
 	for _, repo := range repos {
 		kv.DebugD("dockerhub-get-repo-tags", logger.M{"repo": repo})
 		repoTags, err := dockerhubClient.GetTagsForRepo(repo)
-		if err != nil && err != dockerhub.ErrorFailedToGetTags {
-			// Some repos may not have tags; otherwise, error
-			return err
+		if err != nil {
+			// Some repos may not have tags
+			kv.WarnD("failed-to-get-repo-tags", logger.M{"error": err.Error()})
+			continue
 		}
 
 		if len(repoTags.Tags) <= common.MinImagesInRepo {

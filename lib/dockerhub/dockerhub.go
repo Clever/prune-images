@@ -3,7 +3,6 @@ package dockerhub
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -216,13 +215,10 @@ func (c *Client) DeleteImage(repo, tag string) error {
 	return nil
 }
 
-var ErrorFailedToGetTags = errors.New("failed to get tags from Docker hub")
-
 func (c *Client) GetTagsForRepo(reponame string) (common.RepoTagDescription, error) {
 	tags, err := c.getAllTagsWithBackoff(retryAttempts, reponame)
 	if err != nil {
-		log.Printf("failed to get tags from Docker Hub for repo %s: %s", reponame, err.Error())
-		return common.RepoTagDescription{}, ErrorFailedToGetTags
+		return common.RepoTagDescription{}, fmt.Errorf("failed to get tags from Docker Hub for repo %s: %s", reponame, err.Error())
 	}
 
 	var allTags []common.TagDescription
