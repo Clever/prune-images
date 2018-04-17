@@ -4,4 +4,4 @@
   version = "1.13.0"
 
 [[constraint]]
-  name = "gopkg.in/Clever/kayvee-go.v5"
+  name = "gopkg.in/Clever/kayvee-go.v6"
