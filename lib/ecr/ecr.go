@@ -8,7 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
+
+var kv = logger.New("prune-images")
 
 // Client to interact with ECR API
 type Client struct {
@@ -48,6 +51,8 @@ func generateBatchDeleteImageInputRequest(repo string, tags []common.TagDescript
 			ImageTag: &tags[i].Name,
 		}
 		imageIdentifiers = append(imageIdentifiers, identifier)
+
+		kv.InfoD("ecr-queued-delete", logger.M{"image": identifier.ImageTag})
 	}
 
 	if len(imageIdentifiers) > 0 {
@@ -65,6 +70,8 @@ func (c *Client) deleteImages(inputs []*ecr.BatchDeleteImageInput) {
 		if err != nil {
 			log.Printf("failed to delete ECR repository %s: %s", input, err.Error())
 		}
+
+		kv.InfoD("erc-batch-delete-images", logger.M{"count": len(input.ImageIds)})
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Clever/prune-images/common"
-	"gopkg.in/Clever/kayvee-go.v5/logger"
+	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
 
 const (

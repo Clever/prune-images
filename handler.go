@@ -7,7 +7,7 @@ import (
 	"github.com/Clever/prune-images/config"
 	"github.com/Clever/prune-images/lib/dockerhub"
 	"github.com/Clever/prune-images/lib/ecr"
-	"gopkg.in/Clever/kayvee-go.v5/logger"
+	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
 
 var (
@@ -17,6 +17,8 @@ var (
 )
 
 func pruneRepos() error {
+	kv.InfoD("pruning-repos", logger.M{"dry-run": config.DryRun})
+
 	dockerhubClient = dockerhub.NewClient(config.DockerHubUsername, config.DockerHubPassword, config.DryRun)
 	ecrClient = ecr.NewClient(config.DryRun)
 
