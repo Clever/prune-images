@@ -17,6 +17,8 @@ var (
 )
 
 func pruneRepos() error {
+	kv.InfoD("pruning-repos", logger.M{"dry-run": config.DryRun})
+
 	dockerhubClient = dockerhub.NewClient(config.DockerHubUsername, config.DockerHubPassword, config.DryRun)
 	ecrClient = ecr.NewClient(config.DryRun)
 
