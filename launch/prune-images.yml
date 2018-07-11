@@ -5,18 +5,19 @@ aws:
   managed:
     clever:
     - Workflows
-env: 
-  - AWS_REGION
-  - DOCKERHUB_USERNAME
-  - DOCKERHUB_PASSWORD
-  - DRY_RUN
+env:
+- AWS_REGION
+- DOCKERHUB_USERNAME
+- DOCKERHUB_PASSWORD
+- DRY_RUN
 resources:
   cpu: 0
   max_mem: 0.1
 shepherds:
-- "vicky.enalen@clever.com"
+- vicky.enalen@clever.com
 expose: []
 team: eng-infra
 autoscaling:
   metric: active-percent
   metric_target: 70
+  max_count: 1
