@@ -2,7 +2,7 @@
 
 
 [[projects]]
-  digest = "1:2888b39f26be7ab23aa0a4d14edb413a394b9168543317b0012268a9e1fefa66"
+  digest = "1:a0b7415cfca0fbc10737bd9ec30981c1771ececd48365f4e1c7ccb0f61c8b0ec"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -37,10 +37,11 @@
     "private/protocol/xml/xmlutil",
     "service/ecr",
     "service/sts",
+    "service/sts/stsiface",
   ]
   pruneopts = ""
-  revision = "78c38e1a35a0ae2c4f60bd83e9c68bcb651744d1"
-  version = "v1.20.1"
+  revision = "8ae9ae0c8959def54f4a180ed76812ccc5f888db"
+  version = "v1.21.1"
 
 [[projects]]
   digest = "1:a00483fe4106b86fb1187a92b5cf6915c85f294ed4c129ccbe7cb1f1a06abd46"
