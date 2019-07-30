@@ -2,71 +2,101 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"sort"
+	"strings"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ecr"
+	"gopkg.in/Clever/kayvee-go.v6/logger"
 
 	"github.com/Clever/prune-images/common"
 	"github.com/Clever/prune-images/config"
-	"github.com/Clever/prune-images/lib/dockerhub"
-	"github.com/Clever/prune-images/lib/ecr"
-	"gopkg.in/Clever/kayvee-go.v6/logger"
 )
 
 var (
-	kv              = logger.New("prune-images")
-	dockerhubClient *dockerhub.Client
-	ecrClients      []*ecr.Client
-	regions         = [2]string{"us-west-1", "us-west-2"}
+	kv = logger.New("prune-images")
 )
 
 func pruneRepos() error {
-	kv.InfoD("pruning-repos", logger.M{"dry-run": config.DryRun})
+	kv.InfoD("pruning-repos", logger.M{"dry-run": config.DryRun, "minImages": common.MinImagesInRepo})
 
-	dockerhubClient = dockerhub.NewClient(config.DockerHubUsername, config.DockerHubPassword, config.DryRun)
-
-	for _, region := range regions {
-		ecrClients = append(ecrClients, ecr.NewClient(config.DryRun, region))
+	regions := strings.Split(os.Getenv("REGIONS"), ",")
+	if len(regions) == 0 {
+		return fmt.Errorf("env variable REGIONS not set")
 	}
 
-	// Login to DockerHub to get a token
-	kv.Info("dockerhub-login")
-	err := dockerhubClient.Login()
+	// Prune repositories for all regions
+	for _, region := range config.Regions {
+		kv.DebugD("ecr-prune-region", logger.M{"region": region})
+
+		awsConfig := aws.NewConfig().WithMaxRetries(10)
+		awsConfig.Region = &region
+		ecrClient := ecr.New(session.New(), awsConfig)
+
+		// Get repositories in region
+		repositories, err := ecrClient.DescribeRepositories(&ecr.DescribeRepositoriesInput{})
+		if err != nil {
+			return fmt.Errorf("failed to get repositories in region %v: %v", region, err.Error())
+		}
+
+		// Prune each repositories images
+		for _, repo := range repositories.Repositories {
+			if err := pruneRepo(ecrClient, repo); err != nil {
+				return fmt.Errorf("failed to prune repo %v: %v", *repo.RepositoryName, err.Error())
+			}
+		}
+	}
+
+	return nil
+}
+
+func pruneRepo(ecrClient *ecr.ECR, repo *ecr.Repository) error {
+	kv.DebugD("ecr-get-repo-images", logger.M{"repo": *repo.RepositoryName})
+	images, err := ecrClient.DescribeImages(&ecr.DescribeImagesInput{
+		RegistryId:     repo.RegistryId,
+		RepositoryName: repo.RepositoryName,
+	})
 	if err != nil {
-		kv.ErrorD("dockerhub-login", logger.M{
-			"error": err.Error(),
+		kv.WarnD("failed-to-get-repo-images", logger.M{"error": err.Error()})
+		return fmt.Errorf("failed-to-get-repo-images: %v", err.Error())
+	}
+
+	kv.DebugD("repo-image-count", logger.M{"repo": *repo.RepositoryName, "count": len(images.ImageDetails)})
+
+	// If the image limit is not reached, skip
+	if len(images.ImageDetails) <= common.MinImagesInRepo {
+		return nil
+	}
+
+	kv.InfoD("ecr-prune-repo", logger.M{"repo": *repo.RepositoryName, "image_count": len(images.ImageDetails)})
+
+	// Sort the images from most recent to least recent
+	sort.Slice(images.ImageDetails, func(i, j int) bool {
+		return images.ImageDetails[i].ImagePushedAt.Unix() > images.ImageDetails[j].ImagePushedAt.Unix()
+	})
+
+	imagesToDelete := []*ecr.ImageIdentifier{}
+
+	for i := common.MinImagesInRepo; i < len(images.ImageDetails); i++ {
+		kv.DebugD("image-to-delete", logger.M{"repo": *repo.RepositoryName, "image": *images.ImageDetails[i].ImageDigest})
+		imagesToDelete = append(imagesToDelete, &ecr.ImageIdentifier{
+			ImageDigest: images.ImageDetails[i].ImageDigest,
+			ImageTag:    images.ImageDetails[i].ImageTags[0],
 		})
-		return fmt.Errorf("failed to login to DockerHub")
 	}
 
-	kv.Info("get-all-docker-repos")
-	repos, err := dockerhubClient.GetAllRepos()
-	if err != nil {
-		return err
-	}
-
-	for _, repo := range repos {
-		kv.DebugD("dockerhub-get-repo-tags", logger.M{"repo": repo})
-		repoTags, err := dockerhubClient.GetTagsForRepo(repo)
+	if !config.DryRun {
+		batchDeleteOutput, err := ecrClient.BatchDeleteImage(&ecr.BatchDeleteImageInput{
+			ImageIds:       imagesToDelete,
+			RegistryId:     repo.RegistryId,
+			RepositoryName: repo.RepositoryName,
+		})
 		if err != nil {
-			// Some repos may not have tags
-			kv.WarnD("failed-to-get-repo-tags", logger.M{"error": err.Error()})
-			continue
+			return fmt.Errorf("failed to delete ECR repository images %s: %s", *repo.RepositoryName, err.Error())
 		}
-
-		if len(repoTags.Tags) <= common.MinImagesInRepo {
-			continue
-		}
-
-		kv.InfoD("dockerhub-prune-repo", logger.M{"repo": repo, "tag_count": len(repoTags.Tags)})
-		deletedImages, err := dockerhubClient.PruneRepo(repoTags)
-		if err != nil {
-			return err
-		}
-
-		// Prune ECR with same image tags that were pruned from Docker Hub
-		kv.InfoD("ecr-prune-repo", logger.M{"repo": repo})
-		for _, ecrClient := range ecrClients {
-			ecrClient.DeleteImages(deletedImages)
-		}
+		kv.InfoD("erc-batch-delete-images", logger.M{"count": len(batchDeleteOutput.ImageIds)})
 	}
-
 	return nil
 }

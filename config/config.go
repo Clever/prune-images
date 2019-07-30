@@ -4,24 +4,19 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 )
 
 var (
-	// DockerHubUsername is the username to login to DockerHub.
-	// It must be for an account that can create a repo and add permissions.
-	DockerHubUsername string
-
-	// DockerHubPassword is the password to login to DockerHub.
-	DockerHubPassword string
-
-	// If DryRun is set to true, deleting will not occur
+	// DryRun is a flag when set to true, deleting will not occur
 	DryRun bool
+
+	// Regions is the list of aws regions that will get pruned
+	Regions []string
 )
 
 // Parse reads environment variables and initializes the config
 func Parse() {
-	DockerHubUsername = requiredEnv("DOCKERHUB_USERNAME")
-	DockerHubPassword = requiredEnv("DOCKERHUB_PASSWORD")
 	dryRun, err := strconv.ParseBool(requiredEnv("DRY_RUN"))
 	if err != nil {
 		log.Fatal("Invalid value for DRY_RUN: " + err.Error())
@@ -32,6 +27,13 @@ func Parse() {
 		log.Println("doing dry run of pruning repos")
 	}
 
+	regionsList := requiredEnv("REGIONS")
+	regions := strings.Split(regionsList, ",")
+	if len(regions) == 0 {
+		log.Fatal("Invalid env var: REGIONS")
+	}
+
+	Regions = regions
 }
 
 // requiredEnv tries to find a value in the environment variables. If a value is not

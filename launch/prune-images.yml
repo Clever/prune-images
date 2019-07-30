@@ -6,9 +6,7 @@ aws:
     clever:
     - Workflows
 env:
-- AWS_REGION
-- DOCKERHUB_USERNAME
-- DOCKERHUB_PASSWORD
+- REGIONS
 - DRY_RUN
 resources:
   cpu: 0
