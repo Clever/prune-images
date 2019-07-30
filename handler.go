@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"gopkg.in/Clever/kayvee-go.v6/logger"
 
-	"github.com/Clever/prune-images/common"
 	"github.com/Clever/prune-images/config"
 )
 
@@ -20,7 +19,7 @@ var (
 )
 
 func pruneRepos() error {
-	kv.InfoD("pruning-repos", logger.M{"dry-run": config.DryRun, "minImages": common.MinImagesInRepo})
+	kv.InfoD("pruning-repos", logger.M{"dry-run": config.DryRun, "minImages": config.MinImagesInRepo})
 
 	regions := strings.Split(os.Getenv("REGIONS"), ",")
 	if len(regions) == 0 {
@@ -66,7 +65,7 @@ func pruneRepo(ecrClient *ecr.ECR, repo *ecr.Repository) error {
 	kv.DebugD("repo-image-count", logger.M{"repo": *repo.RepositoryName, "count": len(images.ImageDetails)})
 
 	// If the image limit is not reached, skip
-	if len(images.ImageDetails) <= common.MinImagesInRepo {
+	if len(images.ImageDetails) <= config.MinImagesInRepo {
 		return nil
 	}
 
@@ -79,12 +78,19 @@ func pruneRepo(ecrClient *ecr.ECR, repo *ecr.Repository) error {
 
 	imagesToDelete := []*ecr.ImageIdentifier{}
 
-	for i := common.MinImagesInRepo; i < len(images.ImageDetails); i++ {
-		kv.DebugD("image-to-delete", logger.M{"repo": *repo.RepositoryName, "image": *images.ImageDetails[i].ImageDigest})
-		imagesToDelete = append(imagesToDelete, &ecr.ImageIdentifier{
-			ImageDigest: images.ImageDetails[i].ImageDigest,
-			ImageTag:    images.ImageDetails[i].ImageTags[0],
-		})
+	for i := config.MinImagesInRepo; i < len(images.ImageDetails); i++ {
+		image := images.ImageDetails[i]
+		kv.DebugD("image-to-delete", logger.M{"repo": *repo.RepositoryName, "image": *image.ImageDigest})
+		if len(image.ImageTags) > 0 {
+			imagesToDelete = append(imagesToDelete, &ecr.ImageIdentifier{
+				ImageDigest: image.ImageDigest,
+				ImageTag:    image.ImageTags[0],
+			})
+		} else {
+			imagesToDelete = append(imagesToDelete, &ecr.ImageIdentifier{
+				ImageDigest: image.ImageDigest,
+			})
+		}
 	}
 
 	if !config.DryRun {

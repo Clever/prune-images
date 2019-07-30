@@ -11,6 +11,9 @@ var (
 	// DryRun is a flag when set to true, deleting will not occur
 	DryRun bool
 
+	// MinImagesInRepo defines how many images we want to keep in each repository
+	MinImagesInRepo int
+
 	// Regions is the list of aws regions that will get pruned
 	Regions []string
 )
@@ -25,6 +28,11 @@ func Parse() {
 	DryRun = dryRun
 	if DryRun {
 		log.Println("doing dry run of pruning repos")
+	}
+
+	MinImagesInRepo, err = strconv.Atoi(requiredEnv("MIN_IMAGES"))
+	if err != nil {
+		log.Fatal("Invalid value for MIN_IMAGES: " + err.Error())
 	}
 
 	regionsList := requiredEnv("REGIONS")

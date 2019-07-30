@@ -8,6 +8,7 @@ aws:
 env:
 - REGIONS
 - DRY_RUN
+- MIN_IMAGES
 resources:
   cpu: 0
   max_mem: 0.1
