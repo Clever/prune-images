@@ -13,14 +13,18 @@ import (
 var (
 	kv              = logger.New("prune-images")
 	dockerhubClient *dockerhub.Client
-	ecrClient       *ecr.Client
+	ecrClients      []*ecr.Client
+	regions         = [2]string{"us-west-1", "us-west-2"}
 )
 
 func pruneRepos() error {
 	kv.InfoD("pruning-repos", logger.M{"dry-run": config.DryRun})
 
 	dockerhubClient = dockerhub.NewClient(config.DockerHubUsername, config.DockerHubPassword, config.DryRun)
-	ecrClient = ecr.NewClient(config.DryRun)
+
+	for _, region := range regions {
+		ecrClients = append(ecrClients, ecr.NewClient(config.DryRun, region))
+	}
 
 	// Login to DockerHub to get a token
 	kv.Info("dockerhub-login")
@@ -59,7 +63,9 @@ func pruneRepos() error {
 
 		// Prune ECR with same image tags that were pruned from Docker Hub
 		kv.InfoD("ecr-prune-repo", logger.M{"repo": repo})
-		ecrClient.DeleteImages(deletedImages)
+		for _, ecrClient := range ecrClients {
+			ecrClient.DeleteImages(deletedImages)
+		}
 	}
 
 	return nil

@@ -19,8 +19,9 @@ type Client struct {
 	dryrun  bool
 }
 
-func NewClient(dryrun bool) *Client {
+func NewClient(dryrun bool, region string) *Client {
 	awsConfig := aws.NewConfig().WithMaxRetries(10)
+	awsConfig.Region = &region
 	return &Client{
 		service: ecr.New(session.New(), awsConfig),
 		dryrun:  dryrun,
