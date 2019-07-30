@@ -81,16 +81,9 @@ func pruneRepo(ecrClient *ecr.ECR, repo *ecr.Repository) error {
 	for i := config.MinImagesInRepo; i < len(images.ImageDetails); i++ {
 		image := images.ImageDetails[i]
 		kv.DebugD("image-to-delete", logger.M{"repo": *repo.RepositoryName, "image": *image.ImageDigest})
-		if len(image.ImageTags) > 0 {
-			imagesToDelete = append(imagesToDelete, &ecr.ImageIdentifier{
-				ImageDigest: image.ImageDigest,
-				ImageTag:    image.ImageTags[0],
-			})
-		} else {
-			imagesToDelete = append(imagesToDelete, &ecr.ImageIdentifier{
-				ImageDigest: image.ImageDigest,
-			})
-		}
+		imagesToDelete = append(imagesToDelete, &ecr.ImageIdentifier{
+			ImageDigest: image.ImageDigest,
+		})
 	}
 
 	if !config.DryRun {
