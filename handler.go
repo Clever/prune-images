@@ -26,7 +26,7 @@ func pruneRepos() error {
 		return fmt.Errorf("env variable REGIONS not set")
 	}
 
-	// Prune repositories for all regions
+	// Prune repositories per region
 	for _, region := range config.Regions {
 		kv.DebugD("ecr-prune-region", logger.M{"region": region})
 
@@ -34,17 +34,26 @@ func pruneRepos() error {
 		awsConfig.Region = &region
 		ecrClient := ecr.New(session.New(), awsConfig)
 
-		// Get repositories in region
-		repositories, err := ecrClient.DescribeRepositories(&ecr.DescribeRepositoriesInput{})
+		var pruneRepoErr error
+
+		// Func to fetch and prune each repository thru pagination
+		pruneRepos := func(output *ecr.DescribeRepositoriesOutput, lastPage bool) bool {
+			for _, repo := range output.Repositories {
+				if err := pruneRepo(ecrClient, repo); err != nil {
+					pruneRepoErr = fmt.Errorf("failed to prune repo %v: %v", *repo.RepositoryName, err.Error())
+					return false
+				}
+			}
+			return !lastPage
+		}
+
+		// Get and prune repositories in region
+		err := ecrClient.DescribeRepositoriesPages(&ecr.DescribeRepositoriesInput{}, pruneRepos)
 		if err != nil {
 			return fmt.Errorf("failed to get repositories in region %v: %v", region, err.Error())
 		}
-
-		// Prune each repositories images
-		for _, repo := range repositories.Repositories {
-			if err := pruneRepo(ecrClient, repo); err != nil {
-				return fmt.Errorf("failed to prune repo %v: %v", *repo.RepositoryName, err.Error())
-			}
+		if pruneRepoErr != nil {
+			return pruneRepoErr
 		}
 	}
 
@@ -52,35 +61,41 @@ func pruneRepos() error {
 }
 
 func pruneRepo(ecrClient *ecr.ECR, repo *ecr.Repository) error {
-	kv.DebugD("ecr-get-repo-images", logger.M{"repo": *repo.RepositoryName})
-	images, err := ecrClient.DescribeImages(&ecr.DescribeImagesInput{
+	kv.DebugD("ecr-get-repo-images", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId})
+
+	images := []*ecr.ImageDetail{}
+
+	// Get all images in repo thru pagination
+	err := ecrClient.DescribeImagesPages(&ecr.DescribeImagesInput{
 		RegistryId:     repo.RegistryId,
 		RepositoryName: repo.RepositoryName,
+	}, func(output *ecr.DescribeImagesOutput, lastPage bool) bool {
+		images = append(images, output.ImageDetails...)
+		return !lastPage
 	})
 	if err != nil {
-		kv.WarnD("failed-to-get-repo-images", logger.M{"error": err.Error()})
+		kv.WarnD("failed-to-get-repo-images", logger.M{"error": err.Error(), "repo": *repo.RepositoryName, "registry": *repo.RegistryId})
 		return fmt.Errorf("failed-to-get-repo-images: %v", err.Error())
 	}
 
-	kv.DebugD("repo-image-count", logger.M{"repo": *repo.RepositoryName, "count": len(images.ImageDetails)})
-
 	// If the image limit is not reached, skip
-	if len(images.ImageDetails) <= config.MinImagesInRepo {
+	if len(images) <= config.MinImagesInRepo {
+		kv.InfoD("ecr-skip-prune-repo", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId, "image_count": len(images)})
 		return nil
 	}
 
-	kv.InfoD("ecr-prune-repo", logger.M{"repo": *repo.RepositoryName, "image_count": len(images.ImageDetails)})
+	kv.InfoD("ecr-prune-repo", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId, "image_count": len(images)})
 
 	// Sort the images from most recent to least recent
-	sort.Slice(images.ImageDetails, func(i, j int) bool {
-		return images.ImageDetails[i].ImagePushedAt.Unix() > images.ImageDetails[j].ImagePushedAt.Unix()
+	sort.Slice(images, func(i, j int) bool {
+		return images[i].ImagePushedAt.Unix() > images[j].ImagePushedAt.Unix()
 	})
 
 	imagesToDelete := []*ecr.ImageIdentifier{}
 
-	for i := config.MinImagesInRepo; i < len(images.ImageDetails); i++ {
-		image := images.ImageDetails[i]
-		kv.DebugD("image-to-delete", logger.M{"repo": *repo.RepositoryName, "image": *image.ImageDigest})
+	for i := config.MinImagesInRepo; i < len(images); i++ {
+		image := images[i]
+		kv.DebugD("image-to-delete", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId, "image": *image.ImageDigest})
 		imagesToDelete = append(imagesToDelete, &ecr.ImageIdentifier{
 			ImageDigest: image.ImageDigest,
 		})
@@ -95,7 +110,7 @@ func pruneRepo(ecrClient *ecr.ECR, repo *ecr.Repository) error {
 		if err != nil {
 			return fmt.Errorf("failed to delete ECR repository images %s: %s", *repo.RepositoryName, err.Error())
 		}
-		kv.InfoD("erc-batch-delete-images", logger.M{"count": len(batchDeleteOutput.ImageIds)})
+		kv.InfoD("erc-batch-delete-images", logger.M{"count": len(batchDeleteOutput.ImageIds), "repo": *repo.RepositoryName, "registry": *repo.RegistryId})
 	}
 	return nil
 }
