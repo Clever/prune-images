@@ -5,6 +5,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -64,6 +65,7 @@ func pruneRepo(ecrClient *ecr.ECR, repo *ecr.Repository) error {
 	kv.DebugD("ecr-get-repo-images", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId})
 
 	images := []*ecr.ImageDetail{}
+	weekAgo := time.Now().Add(-1 * 7 * 25 * time.Hour)
 
 	// Get all images in repo thru pagination
 	err := ecrClient.DescribeImagesPages(&ecr.DescribeImagesInput{
@@ -95,10 +97,14 @@ func pruneRepo(ecrClient *ecr.ECR, repo *ecr.Repository) error {
 
 	for i := config.MinImagesInRepo; i < len(images); i++ {
 		image := images[i]
-		kv.DebugD("image-to-delete", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId, "image": *image.ImageDigest})
-		imagesToDelete = append(imagesToDelete, &ecr.ImageIdentifier{
-			ImageDigest: image.ImageDigest,
-		})
+
+		// Only remove images added more than 1 week ago.
+		if image.ImagePushedAt.Before(weekAgo) {
+			kv.DebugD("image-to-delete", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId, "image": *image.ImageDigest})
+			imagesToDelete = append(imagesToDelete, &ecr.ImageIdentifier{
+				ImageDigest: image.ImageDigest,
+			})
+		}
 	}
 
 	if !config.DryRun {
