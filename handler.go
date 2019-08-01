@@ -108,15 +108,31 @@ func pruneRepo(ecrClient *ecr.ECR, repo *ecr.Repository) error {
 	}
 
 	if !config.DryRun {
-		batchDeleteOutput, err := ecrClient.BatchDeleteImage(&ecr.BatchDeleteImageInput{
-			ImageIds:       imagesToDelete,
-			RegistryId:     repo.RegistryId,
-			RepositoryName: repo.RepositoryName,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to delete ECR repository images %s: %s", *repo.RepositoryName, err.Error())
+
+		// Delete images in batches of 100, the maximum amount for BatchDeleteImage.
+		// https://docs.aws.amazon.com/AmazonECR/latest/APIReference/API_BatchDeleteImage.html
+		maxItems := 100
+
+		for len(imagesToDelete) > 0 {
+			batchToDelete := make([]*ecr.ImageIdentifier, len(imagesToDelete))
+			copy(batchToDelete, imagesToDelete)
+			if len(imagesToDelete) >= maxItems {
+				batchToDelete = batchToDelete[:maxItems]
+				imagesToDelete = imagesToDelete[maxItems:]
+			} else {
+				imagesToDelete = []*ecr.ImageIdentifier{}
+			}
+
+			batchDeleteOutput, err := ecrClient.BatchDeleteImage(&ecr.BatchDeleteImageInput{
+				ImageIds:       batchToDelete,
+				RegistryId:     repo.RegistryId,
+				RepositoryName: repo.RepositoryName,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to delete ECR repository images %s: %s", *repo.RepositoryName, err.Error())
+			}
+			kv.InfoD("erc-batch-delete-images", logger.M{"count": len(batchDeleteOutput.ImageIds), "repo": *repo.RepositoryName, "registry": *repo.RegistryId})
 		}
-		kv.InfoD("erc-batch-delete-images", logger.M{"count": len(batchDeleteOutput.ImageIds), "repo": *repo.RepositoryName, "registry": *repo.RegistryId})
 	}
 	return nil
 }
