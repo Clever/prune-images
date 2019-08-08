@@ -13,8 +13,4 @@ ark start prune-images -e production
 
 ## Required Environment Variables
 
-`DRY_RUN`: can be either `true` or `false`. Indicateds whether or not the delete will occur for images that qualify for pruning. If `true`, then the worker's output will print the images that will be deleted from Docker Hub and the delete calls that will be made to Amazon ECR.
-
-`DOCKERHUB_USERNAME`: the username for Docker Hub
-
-`DOCKERHUB_PASSWORD`: the corresponding password for `DOCKERHUB_USERNAME`
+`DRY_RUN`: can be either `true` or `false`. Indicateds whether or not the delete will occur for images that qualify for pruning. If `true`, then the worker's output will print the delete calls that will be made to Amazon ECR.
