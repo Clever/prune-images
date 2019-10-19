@@ -10,7 +10,7 @@ SFNCLI_VERSION := latest
 
 .PHONY: test $(PKGS) run
 
-$(eval $(call golang-version-check,1.12))
+$(eval $(call golang-version-check,1.13))
 
 test: $(PKGS)
 
