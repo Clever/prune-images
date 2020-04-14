@@ -40,12 +40,22 @@
     "private/protocol/rest",
     "private/protocol/xml/xmlutil",
     "service/ecr",
+    "service/firehose",
+    "service/firehose/firehoseiface",
     "service/sts",
     "service/sts/stsiface",
   ]
   pruneopts = ""
   revision = "72c90cc027711a22e8f55e110f2fa835a082bf2b"
   version = "v1.29.33"
+
+[[projects]]
+  digest = "1:8c9af6e3162383951dee97404fadb761f9ae60b4806998df288a5b143afa7251"
+  name = "github.com/eapache/go-resiliency"
+  packages = ["retrier"]
+  pruneopts = ""
+  revision = "5efd2ed019fd331ec2defc6f3bd98882f1e3e636"
+  version = "v1.2.0"
 
 [[projects]]
   digest = "1:13fe471d0ed891e8544eddfeeb0471fd3c9f2015609a1c000aefdedf52a19d40"
@@ -79,7 +89,7 @@
   revision = "2c8e4be869c17540b336bab0ea18b8d73e6a28b7"
 
 [[projects]]
-  digest = "1:46fb6d8419bb51c7688eee659a159310b10532080d75725526da7f0701b92a40"
+  digest = "1:0d5cfbb57e8ff8640a5a54082ee555270378a28db24f24a24af530384a9822bc"
   name = "gopkg.in/Clever/kayvee-go.v6"
   packages = [
     ".",
@@ -87,8 +97,8 @@
     "router",
   ]
   pruneopts = ""
-  revision = "101c81eb56b55fbce79521e501475517adbbbe6e"
-  version = "v6.18.0"
+  revision = "e704be3e70f85875fc9a56cdfac2acabb5a3eb92"
+  version = "v6.22.0"
 
 [[projects]]
   branch = "v2"
