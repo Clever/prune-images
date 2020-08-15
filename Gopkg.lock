@@ -79,7 +79,7 @@
   revision = "2c8e4be869c17540b336bab0ea18b8d73e6a28b7"
 
 [[projects]]
-  digest = "1:46fb6d8419bb51c7688eee659a159310b10532080d75725526da7f0701b92a40"
+  digest = "1:0923ed679d96b9e53b8c43892e2094ebb5dccd0a66709b20c90f43c37ff71ff1"
   name = "gopkg.in/Clever/kayvee-go.v6"
   packages = [
     ".",
@@ -87,8 +87,8 @@
     "router",
   ]
   pruneopts = ""
-  revision = "101c81eb56b55fbce79521e501475517adbbbe6e"
-  version = "v6.18.0"
+  revision = "1c544ce9daf62e3673f4f1ba0bffde53cd13f502"
+  version = "v6.24.0"
 
 [[projects]]
   branch = "v2"
@@ -103,41 +103,9 @@
   analyzer-version = 1
   input-imports = [
     "github.com/aws/aws-sdk-go/aws",
-    "github.com/aws/aws-sdk-go/aws/awserr",
-    "github.com/aws/aws-sdk-go/aws/awsutil",
-    "github.com/aws/aws-sdk-go/aws/client",
-    "github.com/aws/aws-sdk-go/aws/client/metadata",
-    "github.com/aws/aws-sdk-go/aws/corehandlers",
-    "github.com/aws/aws-sdk-go/aws/credentials",
-    "github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds",
-    "github.com/aws/aws-sdk-go/aws/credentials/endpointcreds",
-    "github.com/aws/aws-sdk-go/aws/credentials/processcreds",
-    "github.com/aws/aws-sdk-go/aws/credentials/stscreds",
-    "github.com/aws/aws-sdk-go/aws/csm",
-    "github.com/aws/aws-sdk-go/aws/defaults",
-    "github.com/aws/aws-sdk-go/aws/ec2metadata",
-    "github.com/aws/aws-sdk-go/aws/endpoints",
-    "github.com/aws/aws-sdk-go/aws/request",
     "github.com/aws/aws-sdk-go/aws/session",
-    "github.com/aws/aws-sdk-go/aws/signer/v4",
-    "github.com/aws/aws-sdk-go/private/protocol",
-    "github.com/aws/aws-sdk-go/private/protocol/json/jsonutil",
-    "github.com/aws/aws-sdk-go/private/protocol/jsonrpc",
-    "github.com/aws/aws-sdk-go/private/protocol/query",
-    "github.com/aws/aws-sdk-go/private/protocol/query/queryutil",
-    "github.com/aws/aws-sdk-go/private/protocol/rest",
-    "github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil",
     "github.com/aws/aws-sdk-go/service/ecr",
-    "github.com/aws/aws-sdk-go/service/sts",
-    "github.com/aws/aws-sdk-go/service/sts/stsiface",
-    "github.com/jmespath/go-jmespath",
-    "github.com/xeipuuv/gojsonpointer",
-    "github.com/xeipuuv/gojsonreference",
-    "github.com/xeipuuv/gojsonschema",
-    "gopkg.in/Clever/kayvee-go.v6",
     "gopkg.in/Clever/kayvee-go.v6/logger",
-    "gopkg.in/Clever/kayvee-go.v6/router",
-    "gopkg.in/yaml.v2",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
