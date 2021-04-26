@@ -10,8 +10,8 @@ env:
 - DRY_RUN
 - MIN_IMAGES
 resources:
-  cpu: 0
-  max_mem: 0.1
+  cpu: 0.25
+  max_mem: 0.5
 shepherds:
 - vicky.enalen@clever.com
 expose: []
@@ -20,3 +20,9 @@ autoscaling:
   metric: active-percent
   metric_target: 70
   max_count: 1
+pod_config:
+  dev:
+    migrationState: podOnly
+  group: us-west-1
+  prod:
+    migrationState: homepod
