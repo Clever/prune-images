@@ -25,4 +25,4 @@ pod_config:
     migrationState: podOnly
   group: us-west-1
   prod:
-    migrationState: homepod
+    migrationState: podOnly
