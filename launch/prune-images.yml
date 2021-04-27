@@ -16,10 +16,6 @@ shepherds:
 - vicky.enalen@clever.com
 expose: []
 team: eng-infra
-autoscaling:
-  metric: active-percent
-  metric_target: 70
-  max_count: 1
 pod_config:
   dev:
     migrationState: podOnly
