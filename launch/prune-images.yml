@@ -21,3 +21,8 @@ expose: []
 team: eng-infra
 pod_config:
   group: us-west-1
+deploy_config:
+  canaryInProd: false
+  autoDeployEnvs:
+  - clever-dev
+  - production
