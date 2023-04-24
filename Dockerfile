@@ -1,4 +1,4 @@
-FROM debian:stretch
+FROM debian:buster
 RUN apt-get update -y
 RUN apt-get install -y ca-certificates
 COPY bin/prune-images /usr/bin/prune-images
