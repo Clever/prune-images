@@ -1,4 +1,4 @@
-FROM debian:buster
+FROM debian:bookworm-slim
 RUN apt-get update -y
 RUN apt-get install -y ca-certificates
 COPY bin/prune-images /usr/bin/prune-images
