@@ -22,6 +22,8 @@ var (
 )
 
 func pruneRepos() error {
+	ctx := logger.NewContext(context.Background(), kv)
+
 	kv.InfoD("pruning-repos", logger.M{"dry-run": pconfig.DryRun, "minImages": pconfig.MinImagesInRepo})
 
 	regions := strings.Split(os.Getenv("REGIONS"), ",")
@@ -33,7 +35,7 @@ func pruneRepos() error {
 	for _, region := range pconfig.Regions {
 		kv.DebugD("ecr-prune-region", logger.M{"region": region})
 
-		cfg, err := config.LoadDefaultConfig(context.TODO(),
+		cfg, err := config.LoadDefaultConfig(ctx,
 			config.WithRegion(region),
 			config.WithRetryer(func() aws.Retryer {
 				return aws.NopRetryer{}
@@ -49,13 +51,13 @@ func pruneRepos() error {
 		// Get and prune repositories in region
 		paginator := ecr.NewDescribeRepositoriesPaginator(ecrClient, &ecr.DescribeRepositoriesInput{})
 		for paginator.HasMorePages() {
-			output, err := paginator.NextPage(context.TODO())
+			output, err := paginator.NextPage(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to get repositories in region %v: %v", region, err)
 			}
 
 			for _, repo := range output.Repositories {
-				if err := pruneRepo(ecrClient, repo); err != nil {
+				if err := pruneRepo(ctx, ecrClient, repo); err != nil {
 					pruneRepoErr = fmt.Errorf("failed to prune repo %v: %v", *repo.RepositoryName, err.Error())
 					break
 				}
@@ -72,7 +74,7 @@ func pruneRepos() error {
 	return nil
 }
 
-func pruneRepo(ecrClient *ecr.Client, repo types.Repository) error {
+func pruneRepo(ctx context.Context, ecrClient *ecr.Client, repo types.Repository) error {
 	kv.DebugD("ecr-get-repo-images", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId})
 
 	images := []types.ImageDetail{}
@@ -85,7 +87,7 @@ func pruneRepo(ecrClient *ecr.Client, repo types.Repository) error {
 	})
 
 	for paginator.HasMorePages() {
-		output, err := paginator.NextPage(context.TODO())
+		output, err := paginator.NextPage(ctx)
 		if err != nil {
 			kv.WarnD("failed-to-get-repo-images", logger.M{"error": err.Error(), "repo": *repo.RepositoryName, "registry": *repo.RegistryId})
 			return fmt.Errorf("failed-to-get-repo-images: %v", err.Error())
@@ -135,7 +137,7 @@ func pruneRepo(ecrClient *ecr.Client, repo types.Repository) error {
 				imagesToDelete = []types.ImageIdentifier{}
 			}
 
-			batchDeleteOutput, err := ecrClient.BatchDeleteImage(context.TODO(), &ecr.BatchDeleteImageInput{
+			batchDeleteOutput, err := ecrClient.BatchDeleteImage(ctx, &ecr.BatchDeleteImageInput{
 				ImageIds:       batchToDelete,
 				RegistryId:     repo.RegistryId,
 				RepositoryName: repo.RepositoryName,
