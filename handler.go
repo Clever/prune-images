@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecr/types"
@@ -37,9 +36,7 @@ func pruneRepos() error {
 
 		cfg, err := config.LoadDefaultConfig(ctx,
 			config.WithRegion(region),
-			config.WithRetryer(func() aws.Retryer {
-				return aws.NopRetryer{}
-			}),
+			config.WithRetryMaxAttempts(10),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to load AWS config for region %v: %v", region, err)
@@ -78,7 +75,7 @@ func pruneRepo(ctx context.Context, ecrClient *ecr.Client, repo types.Repository
 	kv.DebugD("ecr-get-repo-images", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId})
 
 	images := []types.ImageDetail{}
-	weekAgo := time.Now().Add(-1 * 7 * 25 * time.Hour)
+	weekAgo := time.Now().Add(-7 * 24 * time.Hour) // 7 days * 24 hours = 1 week
 
 	// Get all images in repo thru pagination
 	paginator := ecr.NewDescribeImagesPaginator(ecrClient, &ecr.DescribeImagesInput{
