@@ -1,18 +1,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	"github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"gopkg.in/Clever/kayvee-go.v6/logger"
 
-	"github.com/Clever/prune-images/config"
+	pconfig "github.com/Clever/prune-images/config"
 )
 
 var (
@@ -20,7 +21,9 @@ var (
 )
 
 func pruneRepos() error {
-	kv.InfoD("pruning-repos", logger.M{"dry-run": config.DryRun, "minImages": config.MinImagesInRepo})
+	ctx := logger.NewContext(context.Background(), kv)
+
+	kv.InfoD("pruning-repos", logger.M{"dry-run": pconfig.DryRun, "minImages": pconfig.MinImagesInRepo})
 
 	regions := strings.Split(os.Getenv("REGIONS"), ",")
 	if len(regions) == 0 {
@@ -28,30 +31,37 @@ func pruneRepos() error {
 	}
 
 	// Prune repositories per region
-	for _, region := range config.Regions {
+	for _, region := range pconfig.Regions {
 		kv.DebugD("ecr-prune-region", logger.M{"region": region})
 
-		awsConfig := aws.NewConfig().WithMaxRetries(10)
-		awsConfig.Region = &region
-		ecrClient := ecr.New(session.New(), awsConfig)
-
-		var pruneRepoErr error
-
-		// Func to fetch and prune each repository thru pagination
-		pruneRepos := func(output *ecr.DescribeRepositoriesOutput, lastPage bool) bool {
-			for _, repo := range output.Repositories {
-				if err := pruneRepo(ecrClient, repo); err != nil {
-					pruneRepoErr = fmt.Errorf("failed to prune repo %v: %v", *repo.RepositoryName, err.Error())
-					return false
-				}
-			}
-			return !lastPage
+		cfg, err := config.LoadDefaultConfig(ctx,
+			config.WithRegion(region),
+			config.WithRetryMaxAttempts(10),
+		)
+		if err != nil {
+			return fmt.Errorf("failed to load AWS config for region %v: %v", region, err)
 		}
 
+		ecrClient := ecr.NewFromConfig(cfg)
+		var pruneRepoErr error
+
 		// Get and prune repositories in region
-		err := ecrClient.DescribeRepositoriesPages(&ecr.DescribeRepositoriesInput{}, pruneRepos)
-		if err != nil {
-			return fmt.Errorf("failed to get repositories in region %v: %v", region, err.Error())
+		paginator := ecr.NewDescribeRepositoriesPaginator(ecrClient, &ecr.DescribeRepositoriesInput{})
+		for paginator.HasMorePages() {
+			output, err := paginator.NextPage(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get repositories in region %v: %v", region, err)
+			}
+
+			for _, repo := range output.Repositories {
+				if err := pruneRepo(ctx, ecrClient, repo); err != nil {
+					pruneRepoErr = fmt.Errorf("failed to prune repo %v: %v", *repo.RepositoryName, err.Error())
+					break
+				}
+			}
+			if pruneRepoErr != nil {
+				break
+			}
 		}
 		if pruneRepoErr != nil {
 			return pruneRepoErr
@@ -61,27 +71,29 @@ func pruneRepos() error {
 	return nil
 }
 
-func pruneRepo(ecrClient *ecr.ECR, repo *ecr.Repository) error {
+func pruneRepo(ctx context.Context, ecrClient *ecr.Client, repo types.Repository) error {
 	kv.DebugD("ecr-get-repo-images", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId})
 
-	images := []*ecr.ImageDetail{}
-	weekAgo := time.Now().Add(-1 * 7 * 25 * time.Hour)
+	images := []types.ImageDetail{}
+	weekAgo := time.Now().Add(-7 * 24 * time.Hour) // 7 days * 24 hours = 1 week
 
 	// Get all images in repo thru pagination
-	err := ecrClient.DescribeImagesPages(&ecr.DescribeImagesInput{
+	paginator := ecr.NewDescribeImagesPaginator(ecrClient, &ecr.DescribeImagesInput{
 		RegistryId:     repo.RegistryId,
 		RepositoryName: repo.RepositoryName,
-	}, func(output *ecr.DescribeImagesOutput, lastPage bool) bool {
-		images = append(images, output.ImageDetails...)
-		return !lastPage
 	})
-	if err != nil {
-		kv.WarnD("failed-to-get-repo-images", logger.M{"error": err.Error(), "repo": *repo.RepositoryName, "registry": *repo.RegistryId})
-		return fmt.Errorf("failed-to-get-repo-images: %v", err.Error())
+
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			kv.WarnD("failed-to-get-repo-images", logger.M{"error": err.Error(), "repo": *repo.RepositoryName, "registry": *repo.RegistryId})
+			return fmt.Errorf("failed-to-get-repo-images: %v", err.Error())
+		}
+		images = append(images, output.ImageDetails...)
 	}
 
 	// If the image limit is not reached, skip
-	if len(images) <= config.MinImagesInRepo {
+	if len(images) <= pconfig.MinImagesInRepo {
 		kv.InfoD("ecr-skip-prune-repo", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId, "image_count": len(images)})
 		return nil
 	}
@@ -93,37 +105,36 @@ func pruneRepo(ecrClient *ecr.ECR, repo *ecr.Repository) error {
 		return images[i].ImagePushedAt.Unix() > images[j].ImagePushedAt.Unix()
 	})
 
-	imagesToDelete := []*ecr.ImageIdentifier{}
+	imagesToDelete := []types.ImageIdentifier{}
 
-	for i := config.MinImagesInRepo; i < len(images); i++ {
+	for i := pconfig.MinImagesInRepo; i < len(images); i++ {
 		image := images[i]
 
 		// Only remove images added more than 1 week ago.
 		if image.ImagePushedAt.Before(weekAgo) {
 			kv.DebugD("image-to-delete", logger.M{"repo": *repo.RepositoryName, "registry": *repo.RegistryId, "image": *image.ImageDigest})
-			imagesToDelete = append(imagesToDelete, &ecr.ImageIdentifier{
+			imagesToDelete = append(imagesToDelete, types.ImageIdentifier{
 				ImageDigest: image.ImageDigest,
 			})
 		}
 	}
 
-	if !config.DryRun {
-
+	if !pconfig.DryRun {
 		// Delete images in batches of 100, the maximum amount for BatchDeleteImage.
 		// https://docs.aws.amazon.com/AmazonECR/latest/APIReference/API_BatchDeleteImage.html
 		maxItems := 100
 
 		for len(imagesToDelete) > 0 {
-			batchToDelete := make([]*ecr.ImageIdentifier, len(imagesToDelete))
+			batchToDelete := make([]types.ImageIdentifier, len(imagesToDelete))
 			copy(batchToDelete, imagesToDelete)
 			if len(imagesToDelete) >= maxItems {
 				batchToDelete = batchToDelete[:maxItems]
 				imagesToDelete = imagesToDelete[maxItems:]
 			} else {
-				imagesToDelete = []*ecr.ImageIdentifier{}
+				imagesToDelete = []types.ImageIdentifier{}
 			}
 
-			batchDeleteOutput, err := ecrClient.BatchDeleteImage(&ecr.BatchDeleteImageInput{
+			batchDeleteOutput, err := ecrClient.BatchDeleteImage(ctx, &ecr.BatchDeleteImageInput{
 				ImageIds:       batchToDelete,
 				RegistryId:     repo.RegistryId,
 				RepositoryName: repo.RepositoryName,
